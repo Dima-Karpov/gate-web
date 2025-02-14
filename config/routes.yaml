@@ -1,0 +1,7 @@
+routes:
+  - path: "news-api"
+    target: "http://localhost:8000"
+  - path: "comment-api"
+    target: "http://localhost:8088"
+  - path: "profane-words-api"
+    target: "http://localhost:8089"
