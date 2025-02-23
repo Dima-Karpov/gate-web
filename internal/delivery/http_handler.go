@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"gate-web/internal/usecase"
 	"gate-web/pkg/logger"
+	"gate-web/pkg/middleware"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
 )
@@ -51,6 +53,17 @@ func (h *HttpHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Получаем trace_id из контекста
+	traceID := middleware.GetTraceID(r.Context())
+
+	// Логируем входящий запрос
+	h.log.WithFields(logrus.Fields{
+		"trace_id": traceID,
+		"service":  service,
+		"path":     r.URL.Path,
+		"method":   r.Method,
+	}).Info("ProxyRequest")
+
 	// Формируем правильный путь (убираем news-api)
 	restOfPath := strings.TrimPrefix(r.URL.Path, "/"+service)
 	if !strings.HasPrefix(restOfPath, "/") {
@@ -67,5 +80,24 @@ func (h *HttpHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Отправляем запрос через reverse proxy
 	proxy := h.routerUsecase.GetReverseProxy(targetURL)
+
+	// Передаем trace_id в заголовок
+	director := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		director(req)
+		req.Header.Set("X-Forwarded-Host", req.Host)
+
+		traceID := middleware.GetTraceID(r.Context())
+		req.Header.Set("X-Request-ID", traceID)
+	}
+
+	// Логируем перед отправкой
+	h.log.WithFields(logrus.Fields{
+		"trace_id": traceID,
+		"target":   finalURL,
+		"method":   r.Method,
+	}).Info("Forwarding request to service")
+
+	// Проксируем запрос
 	proxy.ServeHTTP(w, r)
 }
