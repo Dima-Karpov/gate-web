@@ -1,0 +1,14 @@
+services:
+  api:
+    container_name: gate-web-api
+    networks:
+      - my_custom_network
+    ports:
+      - "8081:8081"
+    build:
+      context: .
+    restart: unless-stopped
+
+networks:
+  my_custom_network:
+    external: true
